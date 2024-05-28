@@ -65,7 +65,7 @@ resource "aws_security_group_rule" "db_bastion" {
   to_port           = 3306
   protocol          = "tcp"
   source_security_group_id = module.bastion.sg_id #source is where ur getting traffic from
-  security_group_id = module.bastion.sg_id
+  security_group_id = module.db.sg_id
 }
 
 
