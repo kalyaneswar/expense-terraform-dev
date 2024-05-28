@@ -28,6 +28,26 @@ module "frontend" {
   sg_name = "frontend"
 }
 
+module "bastion" {
+  source = "../../terraform-aws-securitygroup"
+  project_name = var.project_name
+  environment = var.environment
+  sg_description = "SG for Bastion Instances"
+  vpc_id = data.aws_ssm_parameter.vpc_id.value
+  common_tags = var.common_tags
+  sg_name = "bastion"
+}
+
+module "ansible" {
+  source = "../../terraform-aws-securitygroup"
+  project_name = var.project_name
+  environment = var.environment
+  sg_description = "SG for Ansible Instances"
+  vpc_id = data.aws_ssm_parameter.vpc_id.value
+  common_tags = var.common_tags
+  sg_name = "ansible"
+}
+
 # DB is accepting connections from backend
 resource "aws_security_group_rule" "db_backend" {
   type              = "ingress"
@@ -38,6 +58,17 @@ resource "aws_security_group_rule" "db_backend" {
   security_group_id = module.db.sg_id
 }
 
+# DB is accepting connections from bastion
+resource "aws_security_group_rule" "db_bastion" {
+  type              = "ingress"
+  from_port         = 3306
+  to_port           = 3306
+  protocol          = "tcp"
+  source_security_group_id = module.bastion.sg_id #source is where ur getting traffic from
+  security_group_id = module.bastion.sg_id
+}
+
+
 # Backend is accepting connections from frontend
 resource "aws_security_group_rule" "backend_frontend" {
   type              = "ingress"
@@ -45,6 +76,26 @@ resource "aws_security_group_rule" "backend_frontend" {
   to_port           = 8080
   protocol          = "tcp"
   source_security_group_id = module.frontend.sg_id #source is where ur getting traffic from
+  security_group_id = module.backend.sg_id
+}
+
+# Backend is accepting connections from bastion
+resource "aws_security_group_rule" "backend_bastion" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  source_security_group_id = module.bastion.sg_id #source is where ur getting traffic from
+  security_group_id = module.backend.sg_id
+}
+
+# Backend is accepting connections from ansible
+resource "aws_security_group_rule" "backend_ansible" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  source_security_group_id = module.ansible.sg_id #source is where ur getting traffic from
   security_group_id = module.backend.sg_id
 }
 
@@ -57,4 +108,46 @@ resource "aws_security_group_rule" "frontend_public" {
 #   source_security_group_id = module.frontend.sg_id #No source so cidr block
   cidr_blocks = [ "0.0.0.0/0" ]
   security_group_id = module.frontend.sg_id
+}
+
+# frontend is accepting connections from bastion
+resource "aws_security_group_rule" "frontend_bastion" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+#   source_security_group_id = module.frontend.sg_id #No source so cidr block
+  source_security_group_id = module.bastion.sg_id #source is where ur getting traffic from
+  security_group_id = module.frontend.sg_id
+}
+
+# frontend is accepting connections from ansible
+resource "aws_security_group_rule" "frontend_ansible" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+#   source_security_group_id = module.frontend.sg_id #No source so cidr block
+  source_security_group_id = module.ansible.sg_id #source is where ur getting traffic from
+  security_group_id = module.frontend.sg_id
+}
+
+# Bastion is accepting connections from Public
+resource "aws_security_group_rule" "bastion_public" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks = [ "0.0.0.0/0" ]
+  security_group_id = module.bastion.sg_id
+}
+
+# Ansible is accepting connections from Public
+resource "aws_security_group_rule" "ansible_public" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks = [ "0.0.0.0/0" ]
+  security_group_id = module.ansible.sg_id
 }
